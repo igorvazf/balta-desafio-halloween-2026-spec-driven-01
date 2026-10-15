@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using PasswordApi.Data;
+using PasswordApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddSingleton<IPasswordGenerator, PasswordGenerator>();
+builder.Services.AddScoped<IPasswordService, PasswordService>();
 
 var app = builder.Build();
 
