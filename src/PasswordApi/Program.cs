@@ -4,6 +4,7 @@ using PasswordApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddProblemDetails();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddSingleton<IPasswordGenerator, PasswordGenerator>();
@@ -17,4 +18,9 @@ using (var scope = app.Services.CreateScope())
     dbContext.Database.Migrate();
 }
 
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+
 app.Run();
+
+public partial class Program { }
