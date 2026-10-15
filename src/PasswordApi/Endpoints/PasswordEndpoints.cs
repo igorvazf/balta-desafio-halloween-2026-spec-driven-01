@@ -8,10 +8,20 @@ public static class PasswordEndpoints
 {
     public static IEndpointRouteBuilder MapPasswordEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/passwords");
+        var group = app.MapGroup("/passwords").WithTags("Passwords");
 
-        group.MapPost("", CreatePasswordAsync);
-        group.MapGet("/{id:guid}", GetPasswordAsync);
+        group.MapPost("", CreatePasswordAsync)
+            .WithName("CreatePassword")
+            .WithSummary("Generates and stores a new strong password")
+            .Produces<PasswordResponse>(StatusCodes.Status201Created)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
+
+        group.MapGet("/{id:guid}", GetPasswordAsync)
+            .WithName("GetPasswordById")
+            .WithSummary("Returns the password associated with the given id")
+            .Produces<PasswordResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
 
         return app;
     }
