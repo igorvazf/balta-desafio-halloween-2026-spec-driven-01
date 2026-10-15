@@ -1,10 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using PasswordApi.Data;
+using PasswordApi.Endpoints;
 using PasswordApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddProblemDetails();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddSingleton<IPasswordGenerator, PasswordGenerator>();
@@ -20,6 +23,14 @@ using (var scope = app.Services.CreateScope())
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.MapPasswordEndpoints();
 
 app.Run();
 
