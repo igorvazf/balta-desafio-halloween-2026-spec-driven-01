@@ -1,8 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using PasswordApi.Contracts;
+using PasswordApi.Services;
 
 namespace PasswordApi.Tests;
 
@@ -70,6 +74,30 @@ public class PasswordEndpointsTests(PasswordApiFactory factory) : IClassFixture<
         await AssertNotFoundProblemAsync(response);
     }
 
+    [Fact]
+    public async Task Post_WhenSaveFails_Returns500WithProblemDetailsWithoutIdOrPassword()
+    {
+        await using var failingFactory = new PasswordApiFactory { FailOnSave = true };
+        var client = failingFactory
+            .WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+                services.AddSingleton<IPasswordGenerator, FixedPasswordGenerator>()))
+            .CreateClient();
+
+        var response = await client.PostAsync("/passwords", null);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Null(response.Headers.Location);
+
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(FixedPasswordGenerator.Password, content);
+        Assert.DoesNotMatch(GuidPattern(), content);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Equal(StatusCodes.Status500InternalServerError, problem.Status);
+    }
+
     private static async Task<PasswordResponse> CreatePasswordAsync(HttpClient client)
     {
         var response = await client.PostAsync("/passwords", null);
@@ -96,5 +124,15 @@ public class PasswordEndpointsTests(PasswordApiFactory factory) : IClassFixture<
         Assert.Contains(password, char.IsAsciiDigit);
         Assert.Contains(password, c => AllowedSpecials.Contains(c));
         Assert.DoesNotContain(password, char.IsWhiteSpace);
+    }
+
+    private static Regex GuidPattern() =>
+        new("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+
+    private sealed class FixedPasswordGenerator : IPasswordGenerator
+    {
+        public const string Password = "Fixed#Password123";
+
+        public string Generate() => Password;
     }
 }
