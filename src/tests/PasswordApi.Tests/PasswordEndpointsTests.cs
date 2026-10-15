@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using PasswordApi.Contracts;
 
 namespace PasswordApi.Tests;
@@ -22,6 +24,68 @@ public class PasswordEndpointsTests(PasswordApiFactory factory) : IClassFixture<
         Assert.NotEqual(Guid.Empty, body.Id);
         Assert.Equal($"/passwords/{body.Id}", response.Headers.Location?.OriginalString);
         AssertValidPassword(body.Password);
+    }
+
+    [Fact]
+    public async Task Get_WithIdReturnedByPost_Returns200WithSamePassword()
+    {
+        var client = factory.CreateClient();
+        var created = await CreatePasswordAsync(client);
+
+        var response = await client.GetAsync($"/passwords/{created.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<PasswordResponse>();
+        Assert.Equal(created, body);
+    }
+
+    [Fact]
+    public async Task Get_WithUnknownId_Returns404WithProblemDetails()
+    {
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/passwords/{Guid.NewGuid()}");
+
+        await AssertNotFoundProblemAsync(response);
+    }
+
+    [Fact]
+    public async Task Get_WithEmptyId_Returns404WithProblemDetails()
+    {
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/passwords/{Guid.Empty}");
+
+        await AssertNotFoundProblemAsync(response);
+    }
+
+    [Fact]
+    public async Task Get_WithMalformedId_Returns404WithProblemDetails()
+    {
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/passwords/abc");
+
+        await AssertNotFoundProblemAsync(response);
+    }
+
+    private static async Task<PasswordResponse> CreatePasswordAsync(HttpClient client)
+    {
+        var response = await client.PostAsync("/passwords", null);
+        response.EnsureSuccessStatusCode();
+
+        return (await response.Content.ReadFromJsonAsync<PasswordResponse>())!;
+    }
+
+    private static async Task AssertNotFoundProblemAsync(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Equal(StatusCodes.Status404NotFound, problem.Status);
     }
 
     private static void AssertValidPassword(string password)
